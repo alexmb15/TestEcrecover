@@ -29,7 +29,6 @@ describe("TestEcrecover", function() {
     );
 
     const messageHashBin = ethers.getBytes(hash);
-    console.log("messageHashBin = ", messageHashBin);
     const signature = await owner.signMessage(messageHashBin);
 
     const tx = await testEcrecover.connect(receiver).invoke(to, amount, data, operation, txGas, nonce, signature);
