@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // Uncomment this line to use console.log
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 contract Executor {
 
@@ -70,8 +70,6 @@ contract TestEcrecover is Executor {
             nonce,
             address(this)
         )));
-
-//        console.logBytes32(message);
 
         require(
             recoverSigner(message, signature, 0) == owner, "invalid sig!"
