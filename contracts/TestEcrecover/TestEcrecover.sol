@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // Uncomment this line to use console.log
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract Executor {
 
@@ -13,33 +13,41 @@ contract Executor {
 
     function execute(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas)
         internal
-        returns (bool success)
+        returns (bool success, bytes memory returndata)
     {
         if (operation == Operation.Call)
-            success = executeCall(to, amount, data, txGas);
+            (success, returndata) = executeCall(to, amount, data, txGas);
         else if (operation == Operation.DelegateCall)
-            success = executeDelegateCall(to, data, txGas);
+            (success, returndata) = executeDelegateCall(to, data, txGas);
         else
             success = false;
     }
 
     function executeCall(address to, uint256 amount, bytes memory data, uint256 txGas)
         internal
-        returns (bool success)
+        returns (bool success, bytes memory returndata)
     {
         // solium-disable-next-line security/no-inline-assembly
+
         assembly {
-            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, 0)
+	    returndata := mload(0x40)
+            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, returndatasize())
+  	    let size := returndatasize()
+      	    returndatacopy(returndata, 0, size)
         }
     }
 
     function executeDelegateCall(address to, bytes memory data, uint256 txGas)
         internal
-        returns (bool success)
+        returns (bool success, bytes memory returndata)
     {
+       console.log("executeDelegateCall");
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            success := delegatecall(txGas, to, add(data, 0x20), mload(data), 0, 0)
+	    returndata := mload(0x40)
+            success := delegatecall(txGas, to, add(data, 0x20), mload(data), 0, 0)	    
+  	    let size := returndatasize()
+      	    returndatacopy(returndata, 0, size)
         }
     }
 }
@@ -55,7 +63,7 @@ contract TestEcrecover is Executor {
         owner = msg.sender;
     }
     
-    function invoke(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas, uint256 nonce, bytes memory signature) external returns(bool success) {
+    function invoke(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas, uint256 nonce, bytes memory signature) external returns(bool success, bytes memory returndata) {
         require(!nonces[nonce], "nonce already used!");
 
         nonces[nonce] = true;
@@ -75,7 +83,7 @@ contract TestEcrecover is Executor {
             recoverSigner(message, signature, 0) == owner, "invalid sig!"
         );
 
-        success = execute(to, amount, data, operation, gasleft());
+        (success, returndata) = execute(to, amount, data, operation, gasleft());
         require(success, "execute failed!");
     }
 
