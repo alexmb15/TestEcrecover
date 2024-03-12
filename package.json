@@ -14,9 +14,10 @@
   "license": "ISC",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "hardhat": "^2.20.1"
+    "hardhat": "^2.21.0"
   },
   "dependencies": {
+    "@nomicfoundation/edr-win32-x64-msvc": "^0.2.1",
     "dotenv": "^16.4.5"
   }
 }

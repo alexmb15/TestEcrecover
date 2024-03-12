@@ -15,7 +15,7 @@ contract Executor {
         internal
         returns (bool success, bytes memory returndata)
     {
-        if (operation == Operation.Call)
+        if (operation == Operation.Call) 
             (success, returndata) = executeCall(to, amount, data, txGas);
         else if (operation == Operation.DelegateCall)
             (success, returndata) = executeDelegateCall(to, data, txGas);
@@ -31,7 +31,7 @@ contract Executor {
 
         assembly {
 	    returndata := mload(0x40)
-            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, returndatasize())
+            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, 0)
   	    let size := returndatasize()
       	    returndatacopy(returndata, 0, size)
         }
@@ -45,9 +45,10 @@ contract Executor {
         // solium-disable-next-line security/no-inline-assembly
         assembly {
 	    returndata := mload(0x40)
-            success := delegatecall(txGas, to, add(data, 0x20), mload(data), 0, 0)	    
+            success := delegatecall(txGas, to, add(data, 0x20), mload(data), returndata, returndatasize())
   	    let size := returndatasize()
       	    returndatacopy(returndata, 0, size)
+	  return(returndata,size)
         }
     }
 }
@@ -63,7 +64,8 @@ contract TestEcrecover is Executor {
         owner = msg.sender;
     }
     
-    function invoke(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas, uint256 nonce, bytes memory signature) external returns(bool success, bytes memory returndata) {
+    function invoke(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas, uint256 nonce, bytes memory signature) external returns(bytes memory returndata) {
+        bool success;
         require(!nonces[nonce], "nonce already used!");
 
         nonces[nonce] = true;
@@ -84,6 +86,7 @@ contract TestEcrecover is Executor {
         );
 
         (success, returndata) = execute(to, amount, data, operation, gasleft());
+        //console.logBytes(returndata);
         require(success, "execute failed!");
     }
 
