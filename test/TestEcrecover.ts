@@ -46,13 +46,16 @@ describe("TestEcrecover", function() {
     await expect(tx).to.changeEtherBalance(receiver, amount); 
   });
 
- it("should allow to send and receive payments with executeDelegateCall()", async function() {
+  it("should allow to send/receive payments with executeDelegateCall()", async function() {
     const { owner, receiver, Operation, testEcrecover, implement, gasLimit, gasPrice, txGas } = await loadFixture(deploy);
 
     const to = implement.target;
-    const amount = ethers.parseUnits("10", "ether");
+    const amount = ethers.parseUnits("5", "ether");
     const data = await implement.interface.encodeFunctionData("transferEther(address,uint256)", [receiver.address, amount]);
     const nonce = 1;
+
+    //check balance befor function call
+    const balanceBefor = await ethers.provider.getBalance(testEcrecover.target);
   
     const hash = ethers.solidityPackedKeccak256(
       ["address", "address", "uint256", "bytes", "uint8", "uint256", "uint256", "address"],
@@ -66,7 +69,37 @@ describe("TestEcrecover", function() {
 	"invoke(address,uint256,bytes,uint8,uint256,uint256,bytes)", 
         [to, amount, data, Operation.DelegateCall, txGas, nonce, signature]
     );
-//    const tx = await testEcrecover.connect(receiver).invoke(to, amount, data, Operation.DelegateCall, txGas, nonce, signature);
+
+     const tx = await testEcrecover.connect(receiver).invoke(to, amount, data, Operation.DelegateCall, txGas, nonce, signature);
+        
+     //check send and receive paymets
+     await expect(tx).to.changeEtherBalance(receiver, amount);  
+
+  });
+
+  it("should receive ruturns from executeDelegateCall", async function() {
+    const { owner, receiver, Operation, testEcrecover, implement, gasLimit, gasPrice, txGas } = await loadFixture(deploy);
+
+    const to = implement.target;
+    const amount = ethers.parseUnits("10", "ether");
+    const data = await implement.interface.encodeFunctionData("transferEther(address,uint256)", [receiver.address, amount]);
+    const nonce = 1;
+
+    //check balance befor function call
+    const balanceBefor = await ethers.provider.getBalance(testEcrecover.target);
+  
+    const hash = ethers.solidityPackedKeccak256(
+      ["address", "address", "uint256", "bytes", "uint8", "uint256", "uint256", "address"],
+      [receiver.address, to, amount, data, Operation.DelegateCall, txGas, nonce, testEcrecover.target]
+    );
+
+    const messageHashBin = ethers.getBytes(hash);
+    const signature = await owner.signMessage(messageHashBin);
+
+    const txData = testEcrecover.interface.encodeFunctionData(
+	"invoke(address,uint256,bytes,uint8,uint256,uint256,bytes)", 
+        [to, amount, data, Operation.DelegateCall, txGas, nonce, signature]
+    );
 
     const tx = await ethers.provider.call({
         from: receiver.address,
@@ -75,14 +108,15 @@ describe("TestEcrecover", function() {
         gasLimit: gasLimit,
         gasPrice: gasPrice
     });
-           
+
     const decodedResult = ethers.AbiCoder.defaultAbiCoder().decode(["uint256"], tx);
-//    const decodedResult = coder.decode("bool", "uint256", tx);
-    console.log(decodedResult);
-
-     expect(tx).to.changeEtherBalance(receiver, amount);
-
+  
+     //check received return
+     expect(BigInt(decodedResult)).to.be.equal(balanceBefor - amount);
+ 
   });
+
+
 
   it("should fail with 'invalid sig!' when not owner", async function() {
     const { owner, receiver, Operation, testEcrecover } = await loadFixture(deploy);

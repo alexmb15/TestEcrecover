@@ -31,9 +31,10 @@ contract Executor {
 
         assembly {
 	    returndata := mload(0x40)
-            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, 0)
+            success := call(txGas, to, amount, add(data, 0x20), mload(data), returndata, returndatasize())
   	    let size := returndatasize()
       	    returndatacopy(returndata, 0, size)
+          return(returndata,size)
         }
     }
 
@@ -41,7 +42,6 @@ contract Executor {
         internal
         returns (bool success, bytes memory returndata)
     {
-       console.log("executeDelegateCall");
         // solium-disable-next-line security/no-inline-assembly
         assembly {
 	    returndata := mload(0x40)
