@@ -8,7 +8,7 @@ describe("TestEcrecover", function() {
     const [ owner, receiver ] = await ethers.getSigners();
     const { gasPrice } = await ethers.provider.getFeeData();
 
-    enum Operation {Call, DelegateCall};
+    enum Operation {Call, DelegateCall, StaticCall};
     let gasLimit = 2100000n;
     const txGas = gasLimit * gasPrice;
     
@@ -116,8 +116,6 @@ describe("TestEcrecover", function() {
  
   });
 
-
-
   it("should fail with 'invalid sig!' when not owner", async function() {
     const { owner, receiver, Operation, testEcrecover } = await loadFixture(deploy);
 
@@ -137,5 +135,55 @@ describe("TestEcrecover", function() {
 
     await expect(testEcrecover.connect(receiver).invoke(to, amount, data, Operation.Call, txGas, nonce, signature)).to.be.revertedWith("invalid sig!");
   });
+
+  it("should fail with 'execute failed!' when invoke(...) not successed", async function() {
+    const { owner, receiver, Operation, testEcrecover } = await loadFixture(deploy);
+
+    const to = receiver.address;
+    const amount = ethers.parseUnits("2", "ether");
+    const data = ethers.solidityPacked(["string"], [""]);
+    const txGas = 0;
+    const nonce = 1;
   
+    const hash = ethers.solidityPackedKeccak256(
+      ["address", "address", "uint256", "bytes", "uint8", "uint256", "uint256", "address"],
+      [receiver.address, to, amount, data, Operation.StaticCall, txGas, nonce, testEcrecover.target]
+    );
+
+    const messageHashBin = ethers.getBytes(hash);
+    const signature = await owner.signMessage(messageHashBin);
+
+    await expect(testEcrecover.connect(receiver).invoke(to, amount, data, Operation.StaticCall, txGas, nonce, signature)).to.be.revertedWith("execute failed!");
+  });
+
+  it("should fail with 'not enough ether to transfer!'", async function() {
+
+    const { owner, receiver, Operation, testEcrecover, implement, gasLimit, gasPrice, txGas } = await loadFixture(deploy);
+
+    const to = implement.target;
+    const amount = ethers.parseUnits("101", "ether");
+    const data = await implement.interface.encodeFunctionData("transferEther(address,uint256)", [receiver.address, amount]);
+    const nonce = 1;
+
+    //check balance befor function call
+    const balanceBefor = await ethers.provider.getBalance(testEcrecover.target);
+  
+    const hash = ethers.solidityPackedKeccak256(
+      ["address", "address", "uint256", "bytes", "uint8", "uint256", "uint256", "address"],
+      [receiver.address, to, amount, data, Operation.DelegateCall, txGas, nonce, testEcrecover.target]
+    );
+
+    const messageHashBin = ethers.getBytes(hash);
+    const signature = await owner.signMessage(messageHashBin);
+
+    const txData = testEcrecover.interface.encodeFunctionData(
+	"invoke(address,uint256,bytes,uint8,uint256,uint256,bytes)", 
+        [to, amount, data, Operation.DelegateCall, txGas, nonce, signature]
+    );
+
+    await expect(testEcrecover.connect(receiver).invoke(to, amount, data, Operation.DelegateCall, txGas, nonce, signature)).to.be.revertedWith("not enough ether to transfer!");
+
+  });
+  
+
 });                   

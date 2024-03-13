@@ -8,7 +8,8 @@ contract Executor {
 
     enum Operation {
         Call,
-        DelegateCall
+        DelegateCall,
+        StaticCall
     }
 
     function execute(address to, uint256 amount, bytes memory data, Operation operation, uint256 txGas)
@@ -19,8 +20,8 @@ contract Executor {
             (success, returndata) = executeCall(to, amount, data, txGas);
         else if (operation == Operation.DelegateCall)
             (success, returndata) = executeDelegateCall(to, data, txGas);
-        else
-            success = false;
+        else 
+	    success = false;
     }
 
     function executeCall(address to, uint256 amount, bytes memory data, uint256 txGas)
@@ -28,13 +29,14 @@ contract Executor {
         returns (bool success, bytes memory returndata)
     {
         // solium-disable-next-line security/no-inline-assembly
-
         assembly {
 	    returndata := mload(0x40)
-            success := call(txGas, to, amount, add(data, 0x20), mload(data), returndata, returndatasize())
+            success := call(txGas, to, amount, add(data, 0x20), mload(data), 0, 0)
   	    let size := returndatasize()
       	    returndatacopy(returndata, 0, size)
-          return(returndata,size)
+            switch success
+                case 0 {revert(returndata,size)}
+                default {return(returndata,size)}
         }
     }
 
@@ -45,10 +47,13 @@ contract Executor {
         // solium-disable-next-line security/no-inline-assembly
         assembly {
 	    returndata := mload(0x40)
-            success := delegatecall(txGas, to, add(data, 0x20), mload(data), returndata, returndatasize())
+            success := delegatecall(txGas, to, add(data, 0x20), mload(data), 0, 0)
   	    let size := returndatasize()
       	    returndatacopy(returndata, 0, size)
-	  return(returndata,size)
+            switch success
+                case 0 {revert(returndata,size)}
+                default {return(returndata,size)}
+
         }
     }
 }
@@ -86,7 +91,6 @@ contract TestEcrecover is Executor {
         );
 
         (success, returndata) = execute(to, amount, data, operation, gasleft());
-        //console.logBytes(returndata);
         require(success, "execute failed!");
     }
 
@@ -96,7 +100,7 @@ contract TestEcrecover is Executor {
     * @param _signatures The concatenated signatures.
     * @param _index The index of the signature to recover.
     */
-    function recoverSigner(bytes32 _signedHash, bytes memory _signatures, uint _index) internal pure returns (address) {
+    function recoverSigner(bytes32 _signedHash, bytes memory _signatures, uint _index) internal pure returns (address) {        
         uint8 v;
         bytes32 r;
         bytes32 s;
@@ -109,7 +113,9 @@ contract TestEcrecover is Executor {
             s := mload(add(_signatures, add(0x40,mul(0x41,_index))))
             v := and(mload(add(_signatures, add(0x41,mul(0x41,_index)))), 0xff)
         }
-        require(v == 27 || v == 28); 
+
+        require(uint256(s) <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0, "ECDSA: invalid signature 's' value");
+        require(v == 27 || v == 28, "ECDSA: invalid signature 'v' value"); 
         return ecrecover(_signedHash, v, r, s);
     }
 
